@@ -1,0 +1,35 @@
+{
+    "tabs": [
+      {
+        "key": "tab1",
+        "title": "Tab 1",
+        "image": "https://your-image-url.com/tab1-image.jpg",
+        "content": "Content for Tab 1"
+      },
+      {
+        "key": "tab2",
+        "title": "Tab 2",
+        "image": "https://your-image-url.com/tab2-image.jpg",
+        "content": "Content for Tab 2"
+      },
+      {
+        "key": "tab3",
+        "title": "Tab 3",
+        "image": "https://your-image-url.com/tab3-image.jpg",
+        "content": "Content for Tab 3"
+      },
+      {
+        "key": "tab4",
+        "title": "Tab 4",
+        "image": "https://your-image-url.com/tab4-image.jpg",
+        "content": "Content for Tab 4"
+      },
+      {
+        "key": "tab5",
+        "title": "Tab 5",
+        "image": "https://your-image-url.com/tab5-image.jpg",
+        "content": "Content for Tab 5"
+      }
+    ]
+  }
+  
