@@ -20,23 +20,29 @@ const TabContent = ({ tab, index, onPressNext, style }) => {
   };
 
   return (
-    <ScrollView contentContainerStyle={[styles.tabContent, style]}>
-      <TouchableWithoutFeedback onPress={handleTap}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.tabText}>{tab.content}</Text>
-          <View style={styles.progressBarContainer}>
-            <Animated.View
-              style={[
-                styles.progressBar,
-                {
-                  width: `${progress}%`,
-                },
-              ]}
-            />
+    <View style={styles.cardContainer}>
+      <ScrollView contentContainerStyle={[styles.cardContent, style]}>
+        <TouchableWithoutFeedback onPress={handleTap}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.tabText}>{tab.content}</Text>
+            <View style={styles.progressBarContainer}>
+              <Animated.View
+                style={[
+                  styles.progressBar,
+                  {
+                    width: progress.interpolate({
+                      inputRange: [0, 100],
+                      outputRange: ['0%', '100%'],
+                      extrapolate: 'clamp', // Ensure value does not exceed 0-100% range
+                    }),
+                  },
+                ]}
+              />
+            </View>
           </View>
-        </View>
-      </TouchableWithoutFeedback>
-    </ScrollView>
+        </TouchableWithoutFeedback>
+      </ScrollView>
+    </View>
   );
 };
 

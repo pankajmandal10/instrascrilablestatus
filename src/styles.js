@@ -80,7 +80,7 @@ export const styles = StyleSheet.create({
   },
   tabText: {
     fontSize: 16,
-    color: '#222',
+    color: '#fff',
     textAlign: 'center',
   },
   progressBarContainer: {

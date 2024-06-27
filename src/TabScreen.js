@@ -1,135 +1,239 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, TextInput, StyleSheet, ImageBackground, Dimensions, Animated, ScrollView, TouchableWithoutFeedback, StatusBar, TouchableOpacity } from 'react-native';
-import { TabView, SceneMap } from 'react-native-tab-view';
+import {
+  View, Text, FlatList, ImageBackground, Dimensions, Animated, TouchableOpacity, StyleSheet, StatusBar, PanResponder,
+  Button,
+  TextInput
+} from 'react-native';
+import AntDesign from 'react-native-vector-icons/AntDesign';
+import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import FontAwesome from 'react-native-vector-icons/FontAwesome';
-import FontAwesome5  from 'react-native-vector-icons/FontAwesome5';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import AntDesign from 'react-native-vector-icons/AntDesign';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import data from './data.json'; // Import your static JSON data
 import TabContent from './TabContent'; // Import your enhanced TabContent component
+import RBSheet from 'react-native-raw-bottom-sheet';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const SCREEN_HEIGHT = Dimensions.get('window').height;
+const INITIAL_CARD_COUNT = 3; // Number of cards to load initially
+const BATCH_SIZE = 3; // Number of cards to load in each batch
+const DEFAULT_IMAGE = 'https://via.placeholder.com/150'; // Default image URL
 
 const TabScreen = () => {
   const [index, setIndex] = useState(0);
   const [routes] = useState(data.tabs.map(tab => ({ key: tab.key, title: tab.title })));
   const sheetRef = useRef(null);
+  const position = useRef(new Animated.ValueXY()).current;
+  const refRBSheet = useRef();
 
-  const handleBackgroundTap = () => {
-    console.log('Background tapped');
-    // Move to the next slide
+  const [loadedCards, setLoadedCards] = useState(data.tabs.slice(0, INITIAL_CARD_COUNT));
+
+  const rotate = position.x.interpolate({
+    inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
+    outputRange: ['-30deg', '0deg', '30deg'],
+    extrapolate: 'clamp'
+  });
+
+  const rotateAndTranslate = {
+    transform: [{
+      rotate
+    }, ...position.getTranslateTransform()]
+  };
+
+  const likeOpacity = position.x.interpolate({
+    inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
+    outputRange: [0, 0, 1],
+    extrapolate: 'clamp'
+  });
+
+  const nopeOpacity = position.x.interpolate({
+    inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
+    outputRange: [1, 0, 0],
+    extrapolate: 'clamp'
+  });
+
+  const nextCardOpacity = position.x.interpolate({
+    inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
+    outputRange: [1, 0, 1],
+    extrapolate: 'clamp'
+  });
+
+  const nextCardScale = position.x.interpolate({
+    inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
+    outputRange: [1, 0.8, 1],
+    extrapolate: 'clamp'
+  });
+
+  const panResponder = PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onPanResponderMove: (event, gestureState) => {
+      position.setValue({ x: gestureState.dx, y: gestureState.dy });
+    },
+    onPanResponderRelease: (event, gestureState) => {
+      if (gestureState.dx > 120) {
+        Animated.spring(position, {
+          toValue: { x: SCREEN_WIDTH + 100, y: gestureState.dy },
+          useNativeDriver: false
+        }).start(() => {
+          handleSwipeComplete();
+        });
+      } else if (gestureState.dx < -120) {
+        Animated.spring(position, {
+          toValue: { x: -SCREEN_WIDTH - 100, y: gestureState.dy },
+          useNativeDriver: false
+        }).start(() => {
+          handleSwipeComplete();
+        });
+      } else {
+        Animated.spring(position, {
+          toValue: { x: 0, y: 0 },
+          useNativeDriver: false
+        }).start();
+      }
+    }
+  });
+
+  const handleSwipeComplete = () => {
     setIndex((prevIndex) => (prevIndex + 1) % routes.length);
+    position.setValue({ x: 0, y: 0 });
+
+    // Load more cards if reached the end of loadedCards
+    if (index === loadedCards.length - 1 && loadedCards.length < data.tabs.length) {
+      const newLoadedCards = data.tabs.slice(0, loadedCards.length + BATCH_SIZE);
+      setLoadedCards(newLoadedCards);
+    }
   };
 
-  const renderScene = SceneMap(
-    data.tabs.reduce((acc, tab) => {
-      acc[tab.key] = () => null;
-      return acc;
-    }, {})
-  );
-
-  const renderTabBar = () => {
-    return (
-      <View style={styles.tabBar}>
-        {routes.map((route, i) => (
-          <TouchableOpacity
-            key={route.key}
-            style={styles.tabBarItem}
-            onPress={() => setIndex(i)}
-          >
-            <View style={[styles.dot, i === index && styles.activeDot]} />
-          </TouchableOpacity>
-        ))}
-      </View>
-    );
-  };
-
-  const TabContent = ({ tab, index, onPressNext }) => {
-    const translateX = useRef(new Animated.Value(0)).current;
-
-    const handleTap = () => {
-      console.log('Tab content tapped');
-
-      // Calculate translation based on index
-      const translation = index * -100;
-
-      // Animate translation
-      Animated.timing(translateX, {
-        toValue: translation,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
-
-      // Call parent function to navigate to next tab
-      onPressNext();
-    };
-
-    return (
-      <ScrollView contentContainerStyle={styles.tabContent}>
-        <TouchableWithoutFeedback onPress={handleTap}>
-          <Animated.View style={[styles.tabContainer, { transform: [{ translateX }] }]}>
-            <Text style={styles.tabText}>{tab.content}</Text>
-            <View style={styles.progressBarContainer}>
-              <View style={[styles.progressBar, { width: `${(index + 1) * (100 / data.tabs.length)}%` }]} />
-            </View>
-          </Animated.View>
-        </TouchableWithoutFeedback>
-      </ScrollView>
-    );
-  };
-
-  const renderContent = () => (
-    <View style={[styles.bottomSheetContent, { paddingBottom: 190 }]}>
-      <Text style={styles.bottomSheetTitle}>{data.tabs[index].title}</Text>
-      <TabContent tab={data.tabs[index]} index={index} onPressNext={() => setIndex((prevIndex) => (prevIndex + 1) % routes.length)} />
+  const renderTabBar = () => (
+    <View style={styles.tabBar}>
+      {routes.map((route, i) => (
+        <TouchableOpacity
+          key={route.key}
+          style={styles.tabBarItem}
+          onPress={() => setIndex(i)}
+        >
+          <View style={[styles.tabLine, i === index && styles.activeTabLine]} />
+        </TouchableOpacity>
+      ))}
     </View>
   );
 
+  const renderContent = () => (
+    <View style={styles.bottomSheetContent}>
+      <Text style={styles.bottomSheetTitle}>{data.tabs[index].title}</Text>
+      <TabContent tab={data.tabs[index]} />
+    </View>
+  );
+
+  const renderItem = ({ item }) => (
+    <View style={styles.commentContainer}>
+      <Text>{item.text}</Text>
+    </View>
+  );
+  const getCurrentCard = (cardIndex) => loadedCards[cardIndex] || {};
+  const currentCardImage = getCurrentCard(index).image || DEFAULT_IMAGE;
+  const nextCardImage = getCurrentCard((index + 1) % loadedCards.length).image || DEFAULT_IMAGE;
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <View style={styles.container}>
-        <StatusBar translucent backgroundColor="transparent" />
-        <TouchableOpacity style={styles.backgroundTapArea} onPress={handleBackgroundTap}>
-          <ImageBackground source={{ uri: data.tabs[index].image }} style={styles.backgroundImage}>
-            <View style={styles.overlay}>
-              <View style={styles.header}>
-                <View style={styles.searchContainer}>
-                  <Ionicons name="search" size={22} color="white" style={styles.searchIcon} />
-                  <View style={styles.inputContainer}>
-                    <TextInput
-                      style={styles.searchInput}
-                      placeholder="Search"
-                      placeholderTextColor="white"
-                    // Add onChangeText and other TextInput props as needed
-                    />
-                  </View>
+    <GestureHandlerRootView style={styles.container}>
+      <StatusBar translucent backgroundColor="transparent" />
+
+      <View style={styles.swipeContainer}>
+        <Animated.View
+          {...panResponder.panHandlers}
+          style={[rotateAndTranslate, styles.animatedCard]}
+        >
+
+          <View style={styles.overlay}>
+            <View style={styles.header}>
+              <View style={styles.searchContainer}>
+                <Ionicons name="search" size={22} color="white" style={styles.searchIcon} />
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search"
+                    placeholderTextColor="white"
+                  />
                 </View>
-
-                <MaterialIcons name="notifications" size={22} color="white" style={styles.iconButton} />
-                <Ionicons name="menu" size={22} color="white" style={styles.iconButton} />
-
               </View>
-              <TabView
-                navigationState={{ index, routes }}
-                renderScene={renderScene}
-                onIndexChange={setIndex}
-                initialLayout={{ width: Dimensions.get('window').width }}
-                renderTabBar={renderTabBar}
-              />
-              <View style={styles.iconContainer}>
-                <AntDesign name="playcircleo" size={24} color="white" style={[styles.actionButton, styles.iconMargin]} />
-                <FontAwesome name="heart" size={22} color="white" style={[styles.actionButton, styles.iconMargin]} />
-                <Ionicons name="chatbubble-outline" size={22} color="white" style={[styles.actionButton, styles.iconMargin]} />
-                <MaterialCommunityIcons name="share-outline" size={32} color="white" />
-              </View>
+
+              <MaterialIcons name="notifications" size={22} color="white" style={styles.iconButton} />
+              <Ionicons name="menu" size={22} color="white" style={styles.iconButton} />
 
             </View>
+          </View>
+          {renderTabBar()}
+          <ImageBackground
+            style={styles.cardImage}
+            source={{ uri: currentCardImage }}
+          >
+         
+            <View style={styles.topBar}>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search"
+                placeholderTextColor="#ccc"
+              />
+              <Ionicons name="notifications-outline" size={24} color="white" />
+            </View>
+            <View style={styles.iconContainer}>
+              <AntDesign name="playcircleo" size={24} color="white" style={styles.actionButton} />
+              <FontAwesome name="heart" size={22} color="white" style={styles.actionButton} />
+              <Ionicons onPress={() => refRBSheet.current.open(data.tabs[index].comments)} name="chatbubble-outline" size={22} color="white" style={styles.actionButton} />
+              <MaterialCommunityIcons name="share-outline" size={32} color="white" style={styles.actionButton} />
+            </View>
           </ImageBackground>
-        </TouchableOpacity>
+
+        </Animated.View>
+        <Animated.View style={[styles.nextCard, { opacity: nextCardOpacity, transform: [{ scale: nextCardScale }] }]}>
+          {renderTabBar()}
+          <ImageBackground
+            style={styles.cardImage}
+            source={{ uri: nextCardImage }}
+          >
+            <View style={styles.iconContainer}>
+              <AntDesign name="playcircleo" size={24} color="white" style={styles.actionButton} />
+              <FontAwesome name="heart" size={22} color="white" style={styles.actionButton} />
+              <Ionicons onPress={() => refRBSheet.current.open()} name="chatbubble-outline" size={22} color="white" style={styles.actionButton} />
+              <MaterialCommunityIcons name="share-outline" size={32} color="white" style={styles.actionButton} />
+            </View>
+          </ImageBackground>
+        </Animated.View>
+
       </View>
+
+      <RBSheet
+        ref={refRBSheet}
+        height={300} // Set a fixed height for the bottom sheet
+        openDuration={250} // Duration for the open animation
+        customStyles={{
+          wrapper: {
+            backgroundColor: 'transparent',
+          },
+          draggableIcon: {
+            backgroundColor: '#222',
+          },
+          container: {
+            borderTopLeftRadius: 20,
+            borderTopRightRadius: 20,
+            paddingHorizontal: 20,
+            paddingVertical: 10,
+          },
+        }}
+      >
+        <View style={styles.contentContainer}>
+          <Text style={styles.contentText}>Comments</Text>
+          <FlatList
+            data={data.tabs[index].comments}
+            renderItem={renderItem}
+            keyExtractor={item => item.id.toString()}
+          />
+
+        </View>
+      </RBSheet>
+
       <BottomSheet
         ref={sheetRef}
         snapPoints={['10%', '50%', '90%']}
@@ -137,7 +241,7 @@ const TabScreen = () => {
         initialSnapIndex={0}
         backgroundComponent={({ style }) => (
           <View style={[style, { backgroundColor: '#222', borderTopLeftRadius: 10, borderTopRightRadius: 10 }]}>
-            <FontAwesome5 name="chevron-circle-up" size={24} color="white" style={{ alignSelf: 'center', marginTop: -10 }} />
+            <FontAwesome name="chevron-circle-up" size={24} color="white" style={{ alignSelf: 'center', marginTop: -10 }} />
           </View>
         )}
         handleIndicatorStyle={{ backgroundColor: 'transparent' }} // Add this line to hide the default handle
@@ -145,23 +249,24 @@ const TabScreen = () => {
         {renderContent()}
       </BottomSheet>
 
-
-      
-    </GestureHandlerRootView >
+    </GestureHandlerRootView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: 'grey',
   },
-  backgroundTapArea: {
-    flex: 1,
-  },
-  backgroundImage: {
-    flex: 1,
-    resizeMode: 'cover',
+  tabBar: {
+    flexDirection: 'row',
     justifyContent: 'center',
+    backgroundColor: 'black',
+  },
+  tabBarItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
   },
   overlay: {
     flex: 1,
@@ -170,119 +275,134 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    paddingTop: StatusBar.currentHeight + 20,
-  },
-  searchIcon: {
-    marginRight: 10,
+    paddingTop: 50,
+    paddingHorizontal: 15,
+    paddingBottom: 10,
   },
   searchContainer: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    alignContent: 'center',
-    alignSelf: 'center',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 15,
     paddingHorizontal: 10,
-    height: 37,
+    position: 'absolute'
+  },
+  tabLine: {
+    height: 3,
+    backgroundColor: 'gray',
+    width: '80%',
+    borderRadius: 2,
+  },
+  activeTabLine: {
+    backgroundColor: 'white',
+  },
+  swipeContainer: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  animatedCard: {
+    width: SCREEN_WIDTH - 10,
+    height: SCREEN_HEIGHT - 50,
+    backgroundColor: 'white',
+    borderRadius: 10,
+    overflow: 'hidden',
+    position: 'absolute',
+    borderColor: 'rgba(0,0,0,0.1)',
+    borderWidth: 1,
+    elevation: 5,
+  },
+  cardImage: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'flex-end',
+    // padding: 20,
+  },
+  likeTextContainer: {
+    position: 'absolute',
+    top: 50,
+    left: 40,
+    zIndex: 1000,
+    transform: [{ rotate: '-30deg' }],
+  },
+  likeText: {
+    borderWidth: 1,
+    borderColor: 'green',
+    color: 'green',
+    fontSize: 32,
+    fontWeight: '800',
+    padding: 10,
+  },
+  nopeTextContainer: {
+    position: 'absolute',
+    top: 50,
+    right: 40,
+    zIndex: 1000,
+    transform: [{ rotate: '30deg' }],
+  },
+  nopeText: {
+    borderWidth: 1,
+    borderColor: 'red',
+    color: 'red',
+    fontSize: 32,
+    fontWeight: '800',
+    padding: 10,
+  },
+  nextCard: {
+    width: SCREEN_WIDTH - 10,
+    height: SCREEN_HEIGHT - 50,
+    backgroundColor: 'white',
+    borderRadius: 10,
+    overflow: 'hidden',
+    position: 'absolute',
+    borderColor: 'rgba(0,0,0,0.1)',
+    borderWidth: 1,
+    elevation: 5,
+  },
+  iconContainer: {
+    flexDirection: "column",
+    justifyContent: 'space-between',
+    alignSelf: 'flex-end',
+    position: 'absolute',
+    paddingVertical: 70,
+    paddingHorizontal: 10,
+    height: 270
   },
   inputContainer: {
     flex: 1,
-    borderRadius: 20,
-    overflow: 'hidden',
-  },
-  searchInput: {
-    color: 'white',
-    height: 40,
-    paddingHorizontal: 10,
-  },
-  iconButton: {
-    paddingHorizontal: 12,
-  },
-  tabBar: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 10,
-  },
-  tabBarItem: {
-    paddingHorizontal: 10,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
-  },
-  activeDot: {
-    // backgroundColor: 'white',
-  },
-  iconContainer: {
-    position: 'absolute',
-    right: 10,
-    bottom: 60,
-    flexDirection: 'column',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginVertical: 30,
   },
   actionButton: {
-    marginHorizontal: 10,
+    alignSelf: 'center',
   },
   iconMargin: {
-    marginVertical: 10, // Vertical margin for each icon
-  },
-  actionButton: {
     marginHorizontal: 10,
-    color: '#fff'
   },
   bottomSheetContent: {
-    backgroundColor: '#222',
-    padding: 16,
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flex: 1,
+    padding: 20,
+    backgroundColor: "#222"
   },
   bottomSheetTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
+    color: 'white',
     marginBottom: 10,
-    color: '#fff'
   },
-  tabContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    alignSelf: 'center',
-    color: "#fff",
+  contentContainer: {
     padding: 20,
   },
-  tabContainer: {
-    alignItems: 'center',
-    color: '#fff',
-    shadowColor: '#fff',
-  },
-  tabText: {
-    fontSize: 16,
-    color: '#fff',
-    textAlign: 'center',
-    alignContent: 'center',
-    alignSelf: 'center'
-  },
-  progressBarContainer: {
-    width: '100%',
-    height: 10,
-    backgroundColor: '#ccc',
-    marginTop: 10,
+  contentText: {
     marginBottom: 20,
-    borderRadius: 5,
-    overflow: 'hidden',
+    fontSize: 18,
+    textAlign:'center',
+    fontWeight:'bold'
   },
-  progressBar: {
-    height: '100%',
-    backgroundColor: 'green',
+  commentContainer: {
+    padding: 10,
+    backgroundColor: '#f0f0f0',
     borderRadius: 5,
+    marginBottom: 10,
   },
 });
 
